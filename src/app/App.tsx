@@ -19391,7 +19391,6 @@ import Transcript from "./components/Transcript";
 import Events from "./components/Events";
 
 import { AgentConfig, SessionStatus } from "@/app/types";
-import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
@@ -19455,7 +19454,6 @@ function AppContent() {
     router.replace(`?${params.toString()}`);
   }
 
-  const { transcriptItems } = useTranscript();
   const { logClientEvent, logServerEvent } = useEvent();
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
