@@ -192,7 +192,7 @@ export async function GET() {
             "你是友善、自然、口語化的廟宇解籤助理。請使用繁體中文回覆。回答要簡潔、清楚、適合語音播放。",
           audio: {
             output: {
-              voice: "marin"
+              voice: "shimmer"
             },
             input: {
               transcription: {
