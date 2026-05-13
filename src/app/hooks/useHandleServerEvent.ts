@@ -953,10 +953,27 @@ export function useHandleServerEvent({
   const assistantDeltasRef = useRef<{ [itemId: string]: string }>({});
   const handledFunctionCallIdsRef = useRef<Set<string>>(new Set());
 
+  // Map response_id -> assistant output item id.
+  // GA Realtime 有些 delta 會帶 response_id，有些會帶 item_id/output_item_id。
+  // 先記住 mapping，避免用 response_id 建一個 bubble、又用 item_id 建另一個 bubble。
+  const responseItemIdByResponseIdRef = useRef<Record<string, string>>({});
+
   function transcriptItemExists(itemId?: string) {
     if (!itemId) return false;
     return transcriptItems.some(
       (item) => item.itemId === itemId && item.type === "MESSAGE"
+    );
+  }
+
+  function resolveAssistantItemId(event: any): string | undefined {
+    return (
+      event.item_id ||
+      event.output_item_id ||
+      event.item?.id ||
+      (event.response_id
+        ? responseItemIdByResponseIdRef.current[event.response_id]
+        : undefined) ||
+      event.response_id
     );
   }
 
@@ -1234,12 +1251,9 @@ export function useHandleServerEvent({
         if (event.session?.id) {
           setSessionStatus("CONNECTED");
 
-          // 保留原本的文字 welcome；真正語音 welcome 仍由 App.tsx 控制
-          addTranscriptMessage(
-            "welcome",
-            "assistant",
-            ""
-          );
+          // 不在這裡新增空白 welcome bubble。
+          // 真正的 welcome 文字/語音由 App.tsx 的 response.create 觸發後，
+          // 透過 response.output_audio_transcript.delta / done 顯示。
         }
         break;
       }
@@ -1321,20 +1335,19 @@ export function useHandleServerEvent({
         const itemId = item?.id;
         const role = item?.role as TranscriptRole | undefined;
 
-        if (itemId && role === "assistant" && !transcriptItemExists(itemId)) {
-          addTranscriptMessage(itemId, "assistant", "");
+        // 只記錄 response_id -> item_id，不建立空白 assistant bubble。
+        if (itemId && role === "assistant" && event.response_id) {
+          responseItemIdByResponseIdRef.current[event.response_id] = itemId;
         }
+
         break;
       }
 
       case "response.content_part.added": {
-        const itemId = event.item_id;
+        const itemId = resolveAssistantItemId(event);
         const partText = extractTextFromContent(event.part);
 
-        if (itemId && !transcriptItemExists(itemId)) {
-          addTranscriptMessage(itemId, "assistant", "");
-        }
-
+        // 只有真的有文字時才建立/更新 bubble，避免空白泡泡。
         if (itemId && partText) {
           appendAssistantDelta(itemId, partText);
         }
@@ -1345,12 +1358,7 @@ export function useHandleServerEvent({
       case "response.output_audio_transcript.delta":
       case "response.text.delta":
       case "response.output_text.delta": {
-        const itemId =
-          event.item_id ||
-          event.output_item_id ||
-          event.item?.id ||
-          event.response_id;
-
+        const itemId = resolveAssistantItemId(event);
         const deltaText = event.delta || "";
 
         appendAssistantDelta(itemId, deltaText);
@@ -1361,12 +1369,7 @@ export function useHandleServerEvent({
       case "response.output_audio_transcript.done":
       case "response.text.done":
       case "response.output_text.done": {
-        const itemId =
-          event.item_id ||
-          event.output_item_id ||
-          event.item?.id ||
-          event.response_id;
-
+        const itemId = resolveAssistantItemId(event);
         const transcript = event.transcript || event.text || "";
 
         if (itemId && transcript) {
@@ -1383,7 +1386,7 @@ export function useHandleServerEvent({
       }
 
       case "response.content_part.done": {
-        const itemId = event.item_id;
+        const itemId = resolveAssistantItemId(event);
         const partText = extractTextFromContent(event.part);
 
         if (itemId && partText) {
@@ -1429,7 +1432,8 @@ export function useHandleServerEvent({
               outputItem.name &&
               outputItem.arguments
             ) {
-              const callId = outputItem.call_id || `${outputItem.name}_${outputItem.arguments}`;
+              const callId =
+                outputItem.call_id || `${outputItem.name}_${outputItem.arguments}`;
 
               if (!handledFunctionCallIdsRef.current.has(callId)) {
                 handledFunctionCallIdsRef.current.add(callId);
