@@ -19399,6 +19399,16 @@ import useAudioDownload from "./hooks/useAudioDownload";
 
 type LogRole = "user" | "assistant" | "system" | "feedback";
 
+const WEIDER_TRANSCRIPTION_PROMPT = `
+以下語音主要是繁體中文或普通話，可能夾雜少量英文品牌、通路或價格資訊。
+主題是威德益生菌導購、腸胃保養、好菌、益生菌、排便、口感、水蜜桃口味、粗顆粒、不用配水、長輩、小朋友、素食、抗生素、控糖、糖分、HKD 229、一盒 30 包、香港、Wellcome 惠康、AEON、松本清、Health Store、HKTVmall。
+
+請優先辨識成繁體中文。
+不要把背景雜音、呼吸聲、喇叭回音或不完整尾音轉成英文句子。
+若聽不清楚，請輸出 [inaudible]。
+常見詞彙包含：威德、益生菌、好菌、腸胃、抗生素、控糖、長輩、小朋友、膠囊、口感、水蜜桃、HKTVmall、Health Store、惠康、松本清。
+`.trim();
+
 function extractFileCitationsFromOutput(
   output: any
 ): Array<{ file_id?: string; vector_store_id?: string; quote?: string }> {
@@ -19470,6 +19480,7 @@ function AppContent() {
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(true);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [isOutputAudioBufferActive, setIsOutputAudioBufferActive] = useState<boolean>(false);
+  const isOutputAudioBufferActiveRef = useRef(false);
 
   const { startRecording, stopRecording, downloadRecording } = useAudioDownload();
 
@@ -19509,6 +19520,10 @@ function AppContent() {
       targetEventId?: string;
     }>
   >([]);
+
+  useEffect(() => {
+    isOutputAudioBufferActiveRef.current = isOutputAudioBufferActive;
+  }, [isOutputAudioBufferActive]);
 
   function sendSatisfactionRating(targetEventId: string, rating: number) {
     const payloadContent = `[RATING] target=${targetEventId} value=${rating}`;
@@ -20280,6 +20295,18 @@ function AppContent() {
 
         if (eventType === "input_audio_buffer.speech_started") {
           setIsListening(true);
+
+          if (isOutputAudioBufferActiveRef.current) {
+            sendClientEvent(
+              { type: "response.cancel" },
+              "(auto barge-in: user speech started)"
+            );
+
+            sendClientEvent(
+              { type: "output_audio_buffer.clear" },
+              "(auto barge-in: clear assistant audio)"
+            );
+          }
         }
 
         if (["input_audio_buffer.speech_stopped", "input_audio_buffer.committed"].includes(eventType)) {
@@ -20409,6 +20436,7 @@ function AppContent() {
     setSessionStatus("DISCONNECTED");
     setIsListening(false);
     hasSentWelcomeRef.current = false;
+    isOutputAudioBufferActiveRef.current = false;
 
     conversationState.current = {
       currentUserMessage: null,
@@ -20438,9 +20466,9 @@ function AppContent() {
       ? null
       : {
           type: "server_vad",
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 800,
+          threshold: 0.65,
+          prefix_padding_ms: 500,
+          silence_duration_ms: 1000,
           create_response: true,
           interrupt_response: true,
         };
@@ -20450,7 +20478,9 @@ function AppContent() {
     }
 
 - 當問題需要公司/內部文件或知識庫內容時，請先使用 file_search 檢索向量庫，並在回答中附上來源。
-- 當問題需要最新的外部資訊（新聞、價格、政策、版本更新）時，先呼叫 web_search，再用搜尋結果回答並附上來源。`;
+- 當問題需要最新的外部資訊（新聞、價格、政策、版本更新）時，先呼叫 web_search，再用搜尋結果回答並附上來源。
+- 如果使用者語音聽起來不清楚、內容不完整、像背景音，或和目前對話脈絡明顯不相關，不要直接推銷或回答；請先說：「我剛剛沒有聽清楚，可以再說一次嗎？」
+- 如果轉錄看起來是英文短句，例如 Yeah、Why、Bye、way over there，但前後脈絡主要是中文，請優先判斷可能是誤辨識，先確認，不要直接結束對話或切到英文回覆。`;
 
     const webSearchTool = {
       type: "function",
@@ -20483,7 +20513,14 @@ function AppContent() {
         output_modalities: ["audio"],
         audio: {
           input: {
-            transcription: { model: "whisper-1" },
+            noise_reduction: {
+              type: "near_field",
+            },
+            transcription: {
+              model: "gpt-4o-mini-transcribe",
+              language: "zh",
+              prompt: WEIDER_TRANSCRIPTION_PROMPT,
+            },
             turn_detection: turnDetection,
           },
         },
@@ -20496,18 +20533,16 @@ function AppContent() {
   };
 
   const cancelAssistantSpeech = async () => {
-    const mostRecentAssistantMessage = [...transcriptItems]
-      .reverse()
-      .find((item) => item.role === "assistant");
+    sendClientEvent(
+      { type: "response.cancel" },
+      "(cancel due to user interruption)"
+    );
 
-    if (!mostRecentAssistantMessage) return;
-
-    if ((mostRecentAssistantMessage as any).status === "IN_PROGRESS") {
-      sendClientEvent({ type: "response.cancel" }, "(cancel due to user interruption)");
-    }
-
-    if (isOutputAudioBufferActive) {
-      sendClientEvent({ type: "output_audio_buffer.clear" }, "(cancel due to user interruption)");
+    if (isOutputAudioBufferActiveRef.current) {
+      sendClientEvent(
+        { type: "output_audio_buffer.clear" },
+        "(clear output audio due to user interruption)"
+      );
     }
   };
 
