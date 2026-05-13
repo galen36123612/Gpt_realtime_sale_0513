@@ -19741,7 +19741,7 @@ function AppContent() {
         response: {
           output_modalities: ["audio"],
           instructions:
-            "請你現在主動用繁體中文說一句非常簡短的開場白：『您好，這裡是行天宮解籤服務，請問您抽到的是第幾籤？』說完就停下來等待使用者，不要繼續延伸。",
+            "請你現在主動用繁體中文說一句非常簡短的開場白：『HI, 請問今天保養腸胃了嗎？』說完就停下來等待使用者，不要繼續延伸。",
         },
       },
       "welcome.response_create"
@@ -20665,7 +20665,7 @@ function AppContent() {
           <div>
             <Image src="/aigoasia_logo.png" alt="Weider Logo" width={40} height={40} className="mr-2" />
           </div>
-          <div>廟宇解籤</div>
+          <div>威德益生菌導購</div>
         </div>
 
         <div className="flex items-center gap-3">
