@@ -152,6 +152,16 @@ import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
+const WEIDER_TRANSCRIPTION_PROMPT = `
+以下語音主要是繁體中文或普通話，可能夾雜少量英文品牌、通路或價格資訊。
+主題是威德益生菌導購、腸胃保養、好菌、益生菌、排便、口感、水蜜桃口味、粗顆粒、不用配水、長輩、小朋友、素食、抗生素、控糖、糖分、HKD 229、一盒 30 包、香港、Wellcome 惠康、AEON、松本清、Health Store、HKTVmall。
+
+請優先辨識成繁體中文。
+不要把背景雜音、呼吸聲、喇叭回音或不完整尾音轉成英文句子。
+若聽不清楚，請輸出 [inaudible]。
+常見詞彙包含：威德、益生菌、好菌、腸胃、抗生素、控糖、長輩、小朋友、膠囊、口感、水蜜桃、HKTVmall、Health Store、惠康、松本清。
+`;
+
 export async function GET() {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -168,9 +178,7 @@ export async function GET() {
     let userId = cookieStore.get("anonId")?.value;
     const needSetCookie = !userId;
 
-    if (!userId) {
-      userId = randomUUID();
-    }
+    if (!userId) userId = randomUUID();
 
     const sessionId = randomUUID();
 
@@ -183,32 +191,39 @@ export async function GET() {
       body: JSON.stringify({
         expires_after: {
           anchor: "created_at",
-          seconds: 600
+          seconds: 600,
         },
         session: {
           type: "realtime",
           model: "gpt-realtime",
-          instructions:
-            "你是友善、自然、口語化的廟宇解籤助理。請使用繁體中文回覆。回答要簡潔、清楚、適合語音播放。",
+
+          // instruction 交給 app.tsx / agentConfig 的 session.update 管理
           audio: {
             output: {
-              voice: "shimmer"
+              voice: "shimmer",
             },
             input: {
+              noise_reduction: {
+                type: "near_field",
+              },
               transcription: {
-                model: "whisper-1"
+                model: "gpt-4o-mini-transcribe",
+                language: "zh",
+                prompt: WEIDER_TRANSCRIPTION_PROMPT.trim(),
               },
               turn_detection: {
                 type: "server_vad",
-                threshold: 0.5,
-                prefix_padding_ms: 300,
-                silence_duration_ms: 800,
+                threshold: 0.65,
+                prefix_padding_ms: 500,
+                silence_duration_ms: 1000,
                 create_response: true,
-                interrupt_response: true
-              }
-            }
-          }
-        }
+
+                // 這個一定要保留，才允許使用者語音插話時中斷模型回應
+                interrupt_response: true,
+              },
+            },
+          },
+        },
       }),
       cache: "no-store",
     });
@@ -258,13 +273,10 @@ export async function GET() {
     const res = NextResponse.json(
       {
         ...data,
-
-        // ✅ 相容你舊的 app.tsx：它原本讀 data.client_secret.value
         client_secret: {
           value: data.value,
           expires_at: data.expires_at,
         },
-
         model: data.session?.model || "gpt-realtime",
         userId,
         sessionId,
