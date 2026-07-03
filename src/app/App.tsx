@@ -19381,7 +19381,7 @@ export default App;*/
 
 // 0513 fix the welcome messnege problem
 
-"use client";
+/*"use client";
 
 import React, { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -20615,6 +20615,1906 @@ function AppContent() {
       },
       "trigger response PTT"
     );
+  };
+
+  const handleMicrophoneClick = () => {
+    if (isOutputAudioBufferActive) {
+      cancelAssistantSpeech();
+      return;
+    }
+
+    toggleConversationMode();
+  };
+
+  const toggleConversationMode = () => {
+    const newMode = !isPTTActive;
+    setIsPTTActive(newMode);
+    localStorage.setItem("conversationMode", newMode ? "PTT" : "VAD");
+  };
+
+  useEffect(() => {
+    setIsPTTActive(false);
+    localStorage.setItem("conversationMode", "VAD");
+
+    const storedLogsExpanded = localStorage.getItem("logsExpanded");
+
+    if (storedLogsExpanded) {
+      setIsEventsPaneExpanded(storedLogsExpanded === "true");
+    } else {
+      localStorage.setItem("logsExpanded", "false");
+    }
+
+    const storedAudioPlaybackEnabled = localStorage.getItem("audioPlaybackEnabled");
+
+    if (storedAudioPlaybackEnabled) {
+      setIsAudioPlaybackEnabled(storedAudioPlaybackEnabled === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("logsExpanded", isEventsPaneExpanded.toString());
+  }, [isEventsPaneExpanded]);
+
+  useEffect(() => {
+    localStorage.setItem("audioPlaybackEnabled", isAudioPlaybackEnabled.toString());
+  }, [isAudioPlaybackEnabled]);
+
+  useEffect(() => {
+    if (audioElement.current) {
+      audioElement.current.autoplay = isAudioPlaybackEnabled;
+
+      if (isAudioPlaybackEnabled) {
+        audioElement.current.play().catch((err) => console.warn("Autoplay may be blocked by browser:", err));
+      } else {
+        audioElement.current.pause();
+      }
+    }
+  }, [isAudioPlaybackEnabled]);
+
+  useEffect(() => {
+    if (sessionStatus === "CONNECTED" && audioElement.current?.srcObject) {
+      const remoteStream = audioElement.current.srcObject as MediaStream;
+      startRecording(remoteStream);
+    }
+
+    return () => {
+      stopRecording();
+    };
+  }, [sessionStatus]);
+
+  useEffect(() => {
+    return () => {
+      stopSession();
+    };
+  }, []);
+
+  return (
+    <div
+      className="text-base flex flex-col bg-gray-100 text-gray-800 relative"
+      style={{ height: "100dvh", maxHeight: "100dvh" }}
+    >
+      <div className="p-3 sm:p-5 text-lg font-semibold flex justify-between items-center flex-shrink-0 border-b border-gray-200">
+        <div className="flex items-center cursor-pointer" onClick={() => window.location.reload()}>
+          <div>
+            <Image src="/aigoasia_logo.png" alt="Weider Logo" width={40} height={40} className="mr-2" />
+          </div>
+          <div>宮廟解籤_生肖除錯</div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleMicrophoneClick}
+            className={`w-12 h-12 rounded-full flex items-center justify-center font-medium transition-all duration-200 relative ${
+              isPTTActive
+                ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md animate-pulse"
+                : "bg-green-500 text-white hover:bg-green-600 shadow-md animate-pulse"
+            }`}
+            title={
+              isOutputAudioBufferActive
+                ? "點擊打斷 AI 講話"
+                : isPTTActive
+                ? "點擊切換到持續對話模式"
+                : "持續對話模式"
+            }
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+            </svg>
+
+            {!isPTTActive && isListening && !isOutputAudioBufferActive && (
+              <div className="absolute -top-1 -right-1">
+                <div className="w-3 h-3 bg-green-400 rounded-full animate-ping"></div>
+                <div className="absolute inset-0 w-3 h-3 bg-green-500 rounded-full"></div>
+              </div>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 gap-2 px-2 overflow-hidden relative min-h-0">
+        <Transcript
+          userText={userText}
+          setUserText={setUserText}
+          onSendMessage={handleSendTextMessage}
+          downloadRecording={downloadRecording}
+          canSend={sessionStatus === "CONNECTED" && dataChannel?.readyState === "open"}
+          handleTalkButtonDown={handleTalkButtonDown}
+          handleTalkButtonUp={handleTalkButtonUp}
+          isPTTUserSpeaking={isPTTUserSpeaking}
+          isPTTActive={isPTTActive}
+          onRate={sendSatisfactionRating}
+          ratingsByTargetId={ratingsByTargetId}
+        />
+
+        <Events isExpanded={isEventsPaneExpanded} />
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-lg">載入中...</div>
+        </div>
+      }
+    >
+      <AppContent />
+    </Suspense>
+  );
+}
+
+export default App;*/
+
+// 0703 if user asking zadiac, distinguish luner festival first
+
+"use client";
+
+import React, { useEffect, useRef, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import Image from "next/image";
+
+import Transcript from "./components/Transcript";
+import Events from "./components/Events";
+
+import { AgentConfig, SessionStatus } from "@/app/types";
+import { useEvent } from "@/app/contexts/EventContext";
+import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
+import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
+import useAudioDownload from "./hooks/useAudioDownload";
+
+type LogRole = "user" | "assistant" | "system" | "feedback";
+
+type ZodiacAlgorithm = "tw" | "jp" | "vn";
+
+type FortuneProfileState = {
+  birthDate?: string;
+  userZodiac?: string;
+  algorithm: ZodiacAlgorithm;
+};
+
+type ZodiacCheckPayload =
+  | {
+      type: "lunar_new_year_lookup";
+      year: number;
+      algorithm: ZodiacAlgorithm;
+      algorithmLabel: string;
+      boundaryDate: string;
+      boundaryMonthDay: string;
+      replyInstruction: string;
+    }
+  | {
+      type: "zodiac_check";
+      algorithm: ZodiacAlgorithm;
+      algorithmLabel: string;
+      birthDate: string;
+      birthYear: number;
+      boundaryDate: string;
+      boundaryMonthDay: string;
+      birthMonthDay: string;
+      isBeforeBoundary: boolean;
+      zodiacYear: number;
+      computedZodiac: string;
+      userZodiac: string | null;
+      normalizedUserZodiac: string | null;
+      isConsistent: boolean | null;
+      replyInstruction: string;
+    };
+
+const ZODIAC_ANIMALS = [
+  "鼠",
+  "牛",
+  "虎",
+  "兔",
+  "龍",
+  "蛇",
+  "馬",
+  "羊",
+  "猴",
+  "雞",
+  "狗",
+  "豬",
+] as const;
+
+const TW_LUNAR_NEW_YEAR: Record<number, string> = {
+  1936: "1936-01-24",
+  1937: "1937-02-11",
+  1938: "1938-01-31",
+  1939: "1939-02-19",
+  1940: "1940-02-08",
+  1941: "1941-01-27",
+  1942: "1942-02-15",
+  1943: "1943-02-05",
+  1944: "1944-01-25",
+  1945: "1945-02-13",
+  1946: "1946-02-02",
+  1947: "1947-01-22",
+  1948: "1948-02-10",
+  1949: "1949-01-29",
+  1950: "1950-02-17",
+  1951: "1951-02-06",
+  1952: "1952-01-27",
+  1953: "1953-02-14",
+  1954: "1954-02-03",
+  1955: "1955-01-24",
+  1956: "1956-02-12",
+  1957: "1957-01-31",
+  1958: "1958-02-18",
+  1959: "1959-02-08",
+  1960: "1960-01-28",
+  1961: "1961-02-15",
+  1962: "1962-02-04",
+  1963: "1963-01-25",
+  1964: "1964-02-13",
+  1965: "1965-02-02",
+  1966: "1966-01-21",
+  1967: "1967-02-09",
+  1968: "1968-01-30",
+  1969: "1969-02-17",
+  1970: "1970-02-06",
+  1971: "1971-01-27",
+  1972: "1972-02-15",
+  1973: "1973-02-03",
+  1974: "1974-01-23",
+  1975: "1975-02-11",
+  1976: "1976-01-31",
+  1977: "1977-02-18",
+  1978: "1978-02-07",
+  1979: "1979-01-28",
+  1980: "1980-02-16",
+  1981: "1981-02-05",
+  1982: "1982-01-25",
+  1983: "1983-02-13",
+  1984: "1984-02-02",
+  1985: "1985-02-20",
+  1986: "1986-02-09",
+  1987: "1987-01-29",
+  1988: "1988-02-17",
+  1989: "1989-02-06",
+  1990: "1990-01-27",
+  1991: "1991-02-15",
+  1992: "1992-02-04",
+  1993: "1993-01-23",
+  1994: "1994-02-10",
+  1995: "1995-01-31",
+  1996: "1996-02-19",
+  1997: "1997-02-07",
+  1998: "1998-01-28",
+  1999: "1999-02-16",
+  2000: "2000-02-05",
+  2001: "2001-01-24",
+  2002: "2002-02-12",
+  2003: "2003-02-01",
+  2004: "2004-01-22",
+  2005: "2005-02-09",
+  2006: "2006-01-29",
+  2007: "2007-02-18",
+  2008: "2008-02-07",
+  2009: "2009-01-26",
+  2010: "2010-02-14",
+  2011: "2011-02-03",
+  2012: "2012-01-23",
+  2013: "2013-02-10",
+  2014: "2014-01-31",
+  2015: "2015-02-19",
+  2016: "2016-02-08",
+  2017: "2017-01-28",
+  2018: "2018-02-16",
+  2019: "2019-02-05",
+  2020: "2020-01-25",
+  2021: "2021-02-12",
+  2022: "2022-02-01",
+  2023: "2023-01-22",
+  2024: "2024-02-10",
+  2025: "2025-01-29",
+  2026: "2026-02-17",
+  2027: "2027-02-06",
+  2028: "2028-01-26",
+  2029: "2029-02-13",
+  2030: "2030-02-03",
+  2031: "2031-01-23",
+  2032: "2032-02-11",
+  2033: "2033-01-31",
+  2034: "2034-02-19",
+  2035: "2035-02-08",
+  2036: "2036-01-28",
+};
+
+const VN_LUNAR_OVERRIDES: Record<number, string> = {
+  1968: "1968-01-29",
+  1985: "1985-01-21",
+  2007: "2007-02-17",
+  2030: "2030-02-02",
+};
+
+function normalizeChineseZodiacChars(text: string): string {
+  return text
+    .replace(/龙/g, "龍")
+    .replace(/马/g, "馬")
+    .replace(/鸡/g, "雞")
+    .replace(/猪/g, "豬")
+    .replace(/猫/g, "貓");
+}
+
+function pad2(value: string): string {
+  return value.padStart(2, "0");
+}
+
+function monthDay(date: string): string {
+  return `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
+}
+
+function ymdToNumber(date: string): number {
+  return Number(date.replace(/-/g, ""));
+}
+
+function extractBirthDate(text: string): string | undefined {
+  const normalized = normalizeChineseZodiacChars(text.trim());
+
+  const western = normalized.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+  if (western) {
+    const [, y, m, d] = western;
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+
+  const westernZh = normalized.match(/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+  if (westernZh) {
+    const [, y, m, d] = westernZh;
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+
+  const rocZh = normalized.match(/民國\s*(\d{2,3})\s*年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+  if (rocZh) {
+    const [, rocYear, m, d] = rocZh;
+    const y = Number(rocYear) + 1911;
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+
+  return undefined;
+}
+
+function extractZodiac(text: string): string | undefined {
+  const normalized = normalizeChineseZodiacChars(text.trim());
+  const animal = "(鼠|牛|虎|兔|龍|蛇|馬|羊|猴|雞|狗|豬|貓)";
+
+  const standalone = normalized.match(new RegExp(`^\\s*(?:我)?(?:是|屬|属|數|生肖)?\\s*${animal}\\s*(?:子)?\\s*$`));
+  if (standalone?.[1]) return standalone[1];
+
+  const marked = normalized.match(new RegExp(`(?:屬|属|生肖|數|我是|我屬|我属)\\s*(?:的)?\\s*${animal}`));
+  if (marked?.[1]) return marked[1];
+
+  return undefined;
+}
+
+function extractAlgorithm(text: string): ZodiacAlgorithm | undefined {
+  if (/日本/.test(text)) return "jp";
+  if (/越南/.test(text)) return "vn";
+  if (/台灣|台湾/.test(text)) return "tw";
+  return undefined;
+}
+
+function extractLunarNewYearYear(text: string): number | undefined {
+  const normalized = text.trim();
+
+  const western = normalized.match(/(\d{4})\s*年?.*(農曆年|農曆新年|农历年|农历新年|春節|春节|過年|过年|正月初一|生肖分界|新年分界)/);
+  if (western) return Number(western[1]);
+
+  const roc = normalized.match(/民國\s*(\d{2,3})\s*年?.*(農曆年|農曆新年|农历年|农历新年|春節|春节|過年|过年|正月初一|生肖分界|新年分界)/);
+  if (roc) return Number(roc[1]) + 1911;
+
+  return undefined;
+}
+
+function shouldUseZodiacCheck(text: string, state: FortuneProfileState): boolean {
+  if (extractLunarNewYearYear(text)) return true;
+
+  const hasBirthDateNow = Boolean(extractBirthDate(text));
+  const hasZodiacNow = Boolean(extractZodiac(text));
+  const hasAlgorithmSwitch = Boolean(extractAlgorithm(text));
+
+  if (hasBirthDateNow && hasZodiacNow) return true;
+  if (hasBirthDateNow && Boolean(state.userZodiac)) return true;
+  if (hasZodiacNow && Boolean(state.birthDate)) return true;
+  if (hasAlgorithmSwitch && Boolean(state.birthDate)) return true;
+
+  return false;
+}
+
+function algorithmLabel(algorithm: ZodiacAlgorithm): string {
+  if (algorithm === "jp") return "日本生肖算法";
+  if (algorithm === "vn") return "越南生肖算法";
+  return "台灣生肖算法";
+}
+
+function getBoundaryDate(year: number, algorithm: ZodiacAlgorithm): string {
+  if (algorithm === "jp") return `${year}-01-01`;
+  if (algorithm === "vn" && VN_LUNAR_OVERRIDES[year]) return VN_LUNAR_OVERRIDES[year];
+
+  const boundary = TW_LUNAR_NEW_YEAR[year];
+  if (!boundary) {
+    throw new Error(`No lunar new year data for year ${year}`);
+  }
+
+  return boundary;
+}
+
+function getZodiacByYear(zodiacYear: number): string {
+  const index = ((zodiacYear - 1936) % 12 + 12) % 12;
+  return ZODIAC_ANIMALS[index];
+}
+
+function normalizeZodiac(raw?: string, algorithm: ZodiacAlgorithm = "tw"): string | null {
+  if (!raw) return null;
+
+  const normalized = normalizeChineseZodiacChars(raw)
+    .replace(/屬|属|數|生肖|我是|我|的|是/g, "")
+    .trim();
+
+  if (algorithm === "vn" && normalized.includes("貓")) return "兔";
+  if (normalized.includes("水牛")) return "牛";
+
+  const match = normalized.match(/鼠|牛|虎|兔|龍|蛇|馬|羊|猴|雞|狗|豬/);
+  return match?.[0] ?? null;
+}
+
+function lookupLunarNewYear(year: number, algorithm: ZodiacAlgorithm): ZodiacCheckPayload {
+  const boundaryDate = getBoundaryDate(year, algorithm);
+  const label = algorithmLabel(algorithm);
+  const boundaryMonthDay = monthDay(boundaryDate);
+
+  return {
+    type: "lunar_new_year_lookup",
+    year,
+    algorithm,
+    algorithmLabel: label,
+    boundaryDate,
+    boundaryMonthDay,
+    replyInstruction:
+      algorithm === "jp"
+        ? `${year}年的日本生肖算法分界是1月1日。請直接回答，不要提到查表、後端、JSON、工具、函式或系統規則。`
+        : `${year}年的${label}新年分界是${boundaryMonthDay}。請直接回答這一天，不要提到查表、後端、JSON、工具、函式或系統規則。`,
+  };
+}
+
+function checkZodiac(input: {
+  birthDate: string;
+  userZodiac?: string;
+  algorithm: ZodiacAlgorithm;
+}): ZodiacCheckPayload {
+  const birthDate = input.birthDate;
+  const birthYear = Number(birthDate.slice(0, 4));
+  const boundaryDate = getBoundaryDate(birthYear, input.algorithm);
+  const isBeforeBoundary = ymdToNumber(birthDate) < ymdToNumber(boundaryDate);
+  const zodiacYear = isBeforeBoundary ? birthYear - 1 : birthYear;
+  const computedZodiac = getZodiacByYear(zodiacYear);
+  const normalizedUserZodiac = normalizeZodiac(input.userZodiac, input.algorithm);
+  const isConsistent = normalizedUserZodiac ? normalizedUserZodiac === computedZodiac : null;
+  const boundaryMonthDay = monthDay(boundaryDate);
+  const birthMonthDay = monthDay(birthDate);
+  const label = algorithmLabel(input.algorithm);
+
+  const replyInstruction =
+    isConsistent === false
+      ? `請依照此結果做生肖糾錯確認。必須說：${birthYear}年的新年分界是${boundaryMonthDay}，使用者生日是${birthMonthDay}，因為${
+          isBeforeBoundary ? "在分界日前" : "已經到分界日後"
+        }，所以要看${zodiacYear}年的生肖，應該算屬${computedZodiac}，不是屬${normalizedUserZodiac}。最後只問：這邊要幫你改成屬${computedZodiac}來看嗎？`
+      : `請依照此結果確認生肖一致，然後繼續原本解籤流程。不要提到查表、後端、JSON、工具、函式或系統規則。`;
+
+  return {
+    type: "zodiac_check",
+    algorithm: input.algorithm,
+    algorithmLabel: label,
+    birthDate,
+    birthYear,
+    boundaryDate,
+    boundaryMonthDay,
+    birthMonthDay,
+    isBeforeBoundary,
+    zodiacYear,
+    computedZodiac,
+    userZodiac: input.userZodiac ?? null,
+    normalizedUserZodiac,
+    isConsistent,
+    replyInstruction,
+  };
+}
+
+function buildZodiacResponseInstructions(payload: ZodiacCheckPayload): string {
+  return `
+本回合已由程式完成生肖與農曆新年分界查表，這份結果是最高優先資料來源。
+你必須完全依照 [ZODIAC_CHECK_RESULT] 的 boundaryDate、boundaryMonthDay、zodiacYear、computedZodiac、isConsistent 與 replyInstruction 回答。
+不得自行重新計算，不得使用記憶中的農曆日期，不得把日期改成其他版本。
+回答使用者時，請維持原本解籤大師口吻，不要提到查表、後端、JSON、工具、函式、程式或系統規則。
+
+[ZODIAC_CHECK_RESULT]
+${JSON.stringify(payload, null, 2)}
+`.trim();
+}
+
+const WEIDER_TRANSCRIPTION_PROMPT = `
+以下語音主要是繁體中文或普通話，可能夾雜少量英文、日文或越南文。
+主題是行天宮解籤、關帝靈籤、籤號、求籤主題、感情、事業、財運、健康、出生年月日、國曆、西元、民國、生肖與農曆新年分界日。
+
+請優先辨識成繁體中文。
+不要把背景雜音、呼吸聲、喇叭回音或不完整尾音轉成英文句子。
+若聽不清楚，請輸出 [inaudible]。
+常見詞彙包含：行天宮、解籤、關帝、帝君、第幾籤、第一籤、第二籤、第三籤、第四籤、第五籤、第六籤、第七籤、第八籤、第九籤、第十籤、感情、事業、財運、健康、生肖、屬鼠、屬牛、屬虎、屬兔、屬龍、屬蛇、屬馬、屬羊、屬猴、屬雞、屬狗、屬豬、農曆新年、春節、正月初一。
+`.trim();
+
+function extractFileCitationsFromOutput(
+  output: any
+): Array<{ file_id?: string; vector_store_id?: string; quote?: string }> {
+  const citations: Array<{ file_id?: string; vector_store_id?: string; quote?: string }> = [];
+  const list = Array.isArray(output) ? output : [];
+
+  for (const item of list) {
+    if (item?.type === "message" && Array.isArray(item.content)) {
+      for (const part of item.content) {
+        const annotations = part?.annotations || [];
+        if (Array.isArray(annotations)) {
+          for (const ann of annotations) {
+            if (
+              (ann?.type && String(ann.type).toLowerCase().includes("file")) ||
+              ann?.file_id ||
+              ann?.vector_store_id
+            ) {
+              citations.push({
+                file_id: ann.file_id,
+                vector_store_id: ann.vector_store_id,
+                quote: ann.quote,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (item?.type === "file_search_call") {
+      citations.push({ vector_store_id: item?.vector_store_id });
+    }
+  }
+
+  return citations;
+}
+
+function AppContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  function setSearchParam(key: string, value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set(key, value);
+    router.replace(`?${params.toString()}`);
+  }
+
+  const { logClientEvent, logServerEvent } = useEvent();
+
+  const [selectedAgentName, setSelectedAgentName] = useState<string>("");
+  const [selectedAgentConfigSet, setSelectedAgentConfigSet] = useState<AgentConfig[] | null>(
+    null
+  );
+
+  const [dataChannel, setDataChannel] = useState<RTCDataChannel | null>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const hasSentWelcomeRef = useRef(false);
+
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
+  const audioElement = useRef<HTMLAudioElement | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>("DISCONNECTED");
+
+  const [ratingsByTargetId, setRatingsByTargetId] = useState<Record<string, number>>({});
+
+  const [isEventsPaneExpanded, setIsEventsPaneExpanded] = useState<boolean>(false);
+  const [userText, setUserText] = useState<string>("");
+  const [isPTTActive, setIsPTTActive] = useState<boolean>(false);
+  const [isPTTUserSpeaking, setIsPTTUserSpeaking] = useState<boolean>(false);
+  const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(true);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [isOutputAudioBufferActive, setIsOutputAudioBufferActive] = useState<boolean>(false);
+  const isOutputAudioBufferActiveRef = useRef(false);
+
+  const { startRecording, stopRecording, downloadRecording } = useAudioDownload();
+
+  const [userId, setUserId] = useState<string>("");
+  const [sessionId, setSessionId] = useState<string>("");
+
+  const userIdRef = useRef<string>("");
+  const sessionIdRef = useRef<string>("");
+
+  const conversationState = useRef({
+    currentUserMessage: null as { content: string; eventId: string; timestamp: number } | null,
+    currentAssistantResponse: {
+      isActive: false,
+      responseId: null as string | null,
+      textBuffer: "",
+      audioTranscriptBuffer: "",
+      startTime: 0,
+    },
+    conversationPairs: [] as Array<{
+      user: { content: string; eventId: string; timestamp: number };
+      assistant: { content: string; eventId: string; timestamp: number } | null;
+      pairId: string;
+    }>,
+  });
+
+  const loggedEventIds = useRef<Set<string>>(new Set());
+  const processedToolCallIds = useRef<Set<string>>(new Set());
+  const fortuneProfileRef = useRef<FortuneProfileState>({ algorithm: "tw" });
+  const pendingAudioResponseFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRoutedAudioItemIdRef = useRef<string | null>(null);
+
+  const pendingLogsRef = useRef<
+    Array<{
+      role: LogRole;
+      content: string;
+      eventId?: string;
+      pairId?: string;
+      timestamp?: number;
+      rating?: number;
+      targetEventId?: string;
+    }>
+  >([]);
+
+  useEffect(() => {
+    isOutputAudioBufferActiveRef.current = isOutputAudioBufferActive;
+  }, [isOutputAudioBufferActive]);
+
+  function sendSatisfactionRating(targetEventId: string, rating: number) {
+    const payloadContent = `[RATING] target=${targetEventId} value=${rating}`;
+    const feedbackId = `feedback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    reallyPostLog({
+      role: "feedback",
+      content: payloadContent,
+      eventId: feedbackId,
+      timestamp: Date.now(),
+      rating,
+      targetEventId,
+    })
+      .then(() => {
+        setRatingsByTargetId((prev) => ({ ...prev, [targetEventId]: rating }));
+      })
+      .catch((err) => console.error("💥 Error posting rating:", err));
+  }
+
+  async function reallyPostLog(log: {
+    role: LogRole;
+    content: string;
+    eventId?: string;
+    pairId?: string;
+    timestamp?: number;
+    rating?: number;
+    targetEventId?: string;
+  }) {
+    const eventId = log.eventId || `${log.role}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    if (loggedEventIds.current.has(eventId)) {
+      console.warn("🔄 Duplicate log prevented:", eventId);
+      return;
+    }
+
+    loggedEventIds.current.add(eventId);
+
+    const uid = userIdRef.current || userId || "unknown";
+    const sid = sessionIdRef.current || sessionId || "unknown";
+
+    const payload = {
+      ...log,
+      userId: uid,
+      sessionId: sid,
+      eventId,
+      timestamp: log.timestamp || Date.now(),
+    };
+
+    try {
+      const res = await fetch("/api/logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+
+      if (!res.ok) {
+        console.error("❌ Log API failed:", res.status, res.statusText);
+      } else {
+        console.log("✅ Log posted:", {
+          role: log.role,
+          eventId,
+          pairId: log.pairId,
+          preview: log.content.slice(0, 100) + (log.content.length > 100 ? "..." : ""),
+          uid,
+          sid,
+        });
+      }
+    } catch (e) {
+      console.error("💥 postLog failed:", e);
+      pendingLogsRef.current.push({ ...log, eventId });
+    }
+  }
+
+  function postLog(log: {
+    role: LogRole;
+    content: string;
+    eventId?: string;
+    pairId?: string;
+    timestamp?: number;
+    rating?: number;
+    targetEventId?: string;
+  }) {
+    if (!log.content?.trim()) {
+      console.warn("🚫 postLog skipped: empty content");
+      return;
+    }
+
+    if (!log.eventId) {
+      log.eventId = `${log.role}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    }
+
+    if (loggedEventIds.current.has(log.eventId)) {
+      console.warn("🔄 Duplicate log prevented (pre-flight):", log.eventId);
+      return;
+    }
+
+    reallyPostLog(log).catch((error) => {
+      console.error("💥 Error in postLog:", error);
+    });
+  }
+
+  function logConversationPair(
+    userMsg: { content: string; eventId: string; timestamp: number },
+    assistantMsg: { content: string; eventId: string; timestamp: number }
+  ) {
+    const pairId = `pair_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    reallyPostLog({
+      role: "user",
+      content: userMsg.content,
+      eventId: userMsg.eventId,
+      pairId,
+      timestamp: userMsg.timestamp,
+    })
+      .then(() => {
+        return reallyPostLog({
+          role: "assistant",
+          content: assistantMsg.content,
+          eventId: assistantMsg.eventId,
+          pairId,
+          timestamp: assistantMsg.timestamp,
+        });
+      })
+      .then(() => {
+        console.log(
+          `📝 Logged conversation pair: Q(${userMsg.content.slice(
+            0,
+            30
+          )}...) -> A(${assistantMsg.content.slice(0, 30)}...)`
+        );
+      })
+      .catch((error) => {
+        console.error("💥 Error logging conversation pair:", error);
+      });
+  }
+
+  useEffect(() => {
+    const flush = async () => {
+      if (pendingLogsRef.current.length === 0) return;
+
+      console.log(`🚀 Flushing pending logs queue: ${pendingLogsRef.current.length} items`);
+
+      const queue = [...pendingLogsRef.current];
+      pendingLogsRef.current.length = 0;
+
+      for (const log of queue) {
+        await reallyPostLog(log);
+      }
+    };
+
+    flush();
+
+    const onOnline = () => flush();
+    window.addEventListener("online", onOnline);
+
+    return () => window.removeEventListener("online", onOnline);
+  }, [userId, sessionId]);
+
+  function extractTextFromOutput(output: any): string {
+    let text = "";
+
+    if (Array.isArray(output)) {
+      for (const item of output) {
+        if (item?.type === "text" && item.text) {
+          text += item.text;
+        } else if (item?.content) {
+          const content = Array.isArray(item.content) ? item.content : [item.content];
+
+          for (const contentItem of content) {
+            if (contentItem?.type === "text" && contentItem.text) {
+              text += contentItem.text;
+            } else if (contentItem?.type === "audio" && contentItem.transcript) {
+              console.log("🎵 Found audio transcript in output:", contentItem.transcript);
+              text += contentItem.transcript;
+            } else if (
+              (contentItem?.type === "output_text" || contentItem?.type === "text") &&
+              contentItem?.text
+            ) {
+              text += contentItem.text;
+            }
+          }
+        }
+      }
+    }
+
+    return text;
+  }
+
+  const sendClientEvent = (eventObj: any, eventNameSuffix = "") => {
+    const dc = dataChannelRef.current;
+
+    if (dc && dc.readyState === "open") {
+      logClientEvent(eventObj, eventNameSuffix);
+      dc.send(JSON.stringify(eventObj));
+      return true;
+    }
+
+    logClientEvent(
+      {
+        attemptedEvent: eventObj?.type,
+        readyState: dc?.readyState || "null",
+      },
+      "error.data_channel_not_open"
+    );
+
+    console.error("Failed to send message - data channel not open", {
+      eventObj,
+      readyState: dc?.readyState,
+    });
+
+    return false;
+  };
+
+  function createAssistantAudioResponse(eventNameSuffix = "(trigger response)", extraInstructions?: string) {
+    const response: any = {
+      output_modalities: ["audio"],
+    };
+
+    if (extraInstructions?.trim()) {
+      response.instructions = extraInstructions.trim();
+    }
+
+    return sendClientEvent(
+      {
+        type: "response.create",
+        response,
+      },
+      eventNameSuffix
+    );
+  }
+
+  function clearPendingAudioResponseFallback() {
+    if (pendingAudioResponseFallbackRef.current) {
+      clearTimeout(pendingAudioResponseFallbackRef.current);
+      pendingAudioResponseFallbackRef.current = null;
+    }
+  }
+
+  function scheduleAudioResponseFallback(source: string) {
+    clearPendingAudioResponseFallback();
+
+    pendingAudioResponseFallbackRef.current = setTimeout(() => {
+      pendingAudioResponseFallbackRef.current = null;
+
+      if (conversationState.current.currentAssistantResponse.isActive) {
+        return;
+      }
+
+      postLog({
+        role: "system",
+        content: `[AUDIO RESPONSE FALLBACK] transcript did not complete in time; source=${source}`,
+        eventId: `audio_fallback_${Date.now()}`,
+      });
+
+      createAssistantAudioResponse(`(fallback response after ${source})`);
+    }, 4500);
+  }
+
+  function updateFortuneProfileFromTranscript(transcript: string) {
+    const algorithm = extractAlgorithm(transcript);
+    const birthDate = extractBirthDate(transcript);
+    const zodiac = extractZodiac(transcript);
+
+    if (algorithm) {
+      fortuneProfileRef.current.algorithm = algorithm;
+    }
+
+    if (birthDate) {
+      fortuneProfileRef.current.birthDate = birthDate;
+    }
+
+    if (zodiac) {
+      fortuneProfileRef.current.userZodiac = zodiac;
+    }
+  }
+
+  function handleUserUtteranceForResponse(transcript: string, source: "text" | "audio" | "ptt" | "fallback") {
+    const cleaned = transcript.trim();
+
+    if (!cleaned || cleaned === "[inaudible]") {
+      createAssistantAudioResponse(`(trigger response: ${source} unclear)`);
+      return;
+    }
+
+    updateFortuneProfileFromTranscript(cleaned);
+
+    const shouldCheck = shouldUseZodiacCheck(cleaned, fortuneProfileRef.current);
+
+    if (!shouldCheck) {
+      createAssistantAudioResponse(`(trigger response: ${source} normal)`);
+      return;
+    }
+
+    try {
+      const lunarYear = extractLunarNewYearYear(cleaned);
+
+      if (lunarYear) {
+        const explicitAlgorithm = extractAlgorithm(cleaned);
+        const algorithmForLookup = explicitAlgorithm || fortuneProfileRef.current.algorithm || "tw";
+        const payload = lookupLunarNewYear(lunarYear, algorithmForLookup);
+
+        postLog({
+          role: "system",
+          content: `[ZODIAC_CHECK_RESULT] ${JSON.stringify(payload).slice(0, 1200)}`,
+          eventId: `zodiac_lookup_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        });
+
+        createAssistantAudioResponse(
+          "(trigger response with zodiac lookup)",
+          buildZodiacResponseInstructions(payload)
+        );
+        return;
+      }
+
+      if (fortuneProfileRef.current.birthDate && fortuneProfileRef.current.userZodiac) {
+        const payload = checkZodiac({
+          birthDate: fortuneProfileRef.current.birthDate,
+          userZodiac: fortuneProfileRef.current.userZodiac,
+          algorithm: fortuneProfileRef.current.algorithm,
+        });
+
+        postLog({
+          role: "system",
+          content: `[ZODIAC_CHECK_RESULT] ${JSON.stringify(payload).slice(0, 1200)}`,
+          eventId: `zodiac_check_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        });
+
+        createAssistantAudioResponse(
+          "(trigger response with zodiac check)",
+          buildZodiacResponseInstructions(payload)
+        );
+        return;
+      }
+    } catch (err) {
+      console.error("💥 Zodiac router failed:", err);
+
+      postLog({
+        role: "system",
+        content: `[ZODIAC ROUTER FAILED] ${String(err).slice(0, 300)}`,
+        eventId: `zodiac_router_failed_${Date.now()}`,
+      });
+    }
+
+    createAssistantAudioResponse(`(trigger response: ${source} fallback normal)`);
+  }
+
+  function sendWelcomeOnce() {
+    if (hasSentWelcomeRef.current) return;
+
+    const dc = dataChannelRef.current;
+
+    if (!dc || dc.readyState !== "open") {
+      console.warn("🚫 Welcome skipped: data channel not open", dc?.readyState);
+      return;
+    }
+
+    hasSentWelcomeRef.current = true;
+
+    sendClientEvent(
+      {
+        type: "response.create",
+        response: {
+          output_modalities: ["audio"],
+          instructions:
+            "請你現在主動用繁體中文說一句非常簡短的開場白：『您好這裡是行天宮解籤服務，請問您抽到第幾籤？』說完就停下來等待使用者，不要繼續延伸。",
+        },
+      },
+      "welcome.response_create"
+    );
+  }
+
+  const handleServerEventRef = useHandleServerEvent({
+    setSessionStatus,
+    selectedAgentName,
+    selectedAgentConfigSet,
+    sendClientEvent,
+    setSelectedAgentName,
+    setIsOutputAudioBufferActive,
+  });
+
+  useEffect(() => {
+    let finalAgentConfig = searchParams.get("agentConfig");
+
+    if (!finalAgentConfig || !allAgentSets[finalAgentConfig]) {
+      finalAgentConfig = defaultAgentSetKey;
+      setSearchParam("agentConfig", finalAgentConfig);
+      return;
+    }
+
+    const agents = allAgentSets[finalAgentConfig];
+    const agentKeyToUse = agents[0]?.name || "";
+
+    setSelectedAgentName(agentKeyToUse);
+    setSelectedAgentConfigSet(agents);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (selectedAgentName && sessionStatus === "DISCONNECTED") {
+      startSession();
+    }
+  }, [selectedAgentName]);
+
+  useEffect(() => {
+    if (sessionStatus === "CONNECTED" && selectedAgentConfigSet && selectedAgentName) {
+      updateSession();
+    }
+  }, [selectedAgentConfigSet, selectedAgentName, sessionStatus]);
+
+  useEffect(() => {
+    if (sessionStatus === "CONNECTED") {
+      updateSession();
+    }
+  }, [isPTTActive]);
+
+  async function startSession() {
+    if (sessionStatus !== "DISCONNECTED") return;
+    await connectToRealtime();
+  }
+
+  async function connectToRealtime() {
+    setSessionStatus("CONNECTING");
+    hasSentWelcomeRef.current = false;
+
+    try {
+      logClientEvent({ url: "/api/session" }, "fetch_session_token_request");
+
+      const tokenResponse = await fetch("/api/session", { cache: "no-store" });
+      const data = await tokenResponse.json().catch(() => null);
+
+      logServerEvent(data, "fetch_session_token_response");
+
+      if (!tokenResponse.ok) {
+        console.error("❌ /api/session failed:", tokenResponse.status, tokenResponse.statusText, data);
+        logClientEvent(
+          {
+            status: tokenResponse.status,
+            statusText: tokenResponse.statusText,
+            body: data,
+          },
+          "error.session_route_failed"
+        );
+        setSessionStatus("DISCONNECTED");
+        return;
+      }
+
+      if (data?.userId) {
+        setUserId(data.userId);
+        userIdRef.current = data.userId;
+        console.log("👤 User ID set:", data.userId.substring(0, 8) + "...");
+      }
+
+      if (data?.sessionId) {
+        setSessionId(data.sessionId);
+        sessionIdRef.current = data.sessionId;
+        console.log("🔗 Session ID set:", data.sessionId.substring(0, 8) + "...");
+      }
+
+      const EPHEMERAL_KEY = data?.client_secret?.value || data?.value;
+
+      if (!EPHEMERAL_KEY) {
+        logClientEvent(data, "error.no_ephemeral_key");
+        console.error("No ephemeral key provided by the server", data);
+        setSessionStatus("DISCONNECTED");
+        return;
+      }
+
+      const pc = new RTCPeerConnection();
+      peerConnection.current = pc;
+
+      audioElement.current = document.createElement("audio");
+      audioElement.current.autoplay = isAudioPlaybackEnabled;
+      audioElement.current.muted = false;
+
+      pc.ontrack = (e) => {
+        if (!audioElement.current) return;
+
+        audioElement.current.srcObject = e.streams[0];
+        audioElement.current.autoplay = isAudioPlaybackEnabled;
+        audioElement.current.muted = false;
+
+        if (isAudioPlaybackEnabled) {
+          audioElement.current
+            .play()
+            .catch((err) => console.warn("Autoplay/audio playback may be blocked by browser:", err));
+        }
+      };
+
+      console.log("🎙️ About to request microphone permission", {
+        isSecureContext: window.isSecureContext,
+        protocol: window.location.protocol,
+        host: window.location.host,
+        hasMediaDevices: !!navigator.mediaDevices,
+        hasGetUserMedia: !!navigator.mediaDevices?.getUserMedia,
+      });
+
+      if (!window.isSecureContext) {
+        throw new Error("Microphone requires HTTPS or localhost. Current context is not secure.");
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("navigator.mediaDevices.getUserMedia is not available in this browser/context.");
+      }
+
+      const newMs = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+
+      console.log("✅ Microphone permission granted", {
+        tracks: newMs.getAudioTracks().map((t) => ({
+          label: t.label,
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState,
+        })),
+      });
+
+      const audioTrack = newMs.getAudioTracks()[0];
+
+      if (!audioTrack) {
+        throw new Error("No audio track found after getUserMedia.");
+      }
+
+      pc.addTrack(audioTrack, newMs);
+
+      const dc = pc.createDataChannel("oai-events");
+      dataChannelRef.current = dc;
+      setDataChannel(dc);
+
+      dc.addEventListener("open", () => {
+        logClientEvent({}, "data_channel.open");
+        setSessionStatus("CONNECTED");
+        console.log("🚀 Data channel opened - ready for conversation");
+
+        window.setTimeout(() => {
+          if (!hasSentWelcomeRef.current && dataChannelRef.current?.readyState === "open") {
+            console.warn("⚠️ session.updated not observed yet; sending welcome fallback");
+            sendWelcomeOnce();
+          }
+        }, 2500);
+      });
+
+      dc.addEventListener("close", () => {
+        logClientEvent({}, "data_channel.close");
+
+        if (dataChannelRef.current === dc) {
+          dataChannelRef.current = null;
+        }
+
+        setDataChannel(null);
+        setSessionStatus("DISCONNECTED");
+      });
+
+      dc.addEventListener("error", (err: any) => {
+        logClientEvent({ error: String(err?.message || err) }, "data_channel.error");
+      });
+
+      dc.addEventListener("message", (e: MessageEvent) => {
+        let eventData: any = null;
+
+        try {
+          eventData = JSON.parse(e.data);
+        } catch (err) {
+          console.error("❌ Failed to parse realtime event:", err, e.data);
+          return;
+        }
+
+        handleServerEventRef.current(eventData);
+
+        const eventType = String(eventData?.type || "");
+        console.log("📨 Event:", eventType);
+
+        if (eventType === "session.updated") {
+          console.log("✅ Session updated, sending welcome once");
+          sendWelcomeOnce();
+        }
+
+        if (eventType === "conversation.item.input_audio_transcription.completed") {
+          clearPendingAudioResponseFallback();
+
+          const raw = eventData.transcript || eventData.text || "";
+          const normalized = raw && raw.trim() && raw.trim() !== "\n" ? raw.trim() : "[inaudible]";
+          const eventId =
+            eventData.item_id || `speech_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+          conversationState.current.currentUserMessage = {
+            content: normalized,
+            eventId,
+            timestamp: Date.now(),
+          };
+
+          if (lastRoutedAudioItemIdRef.current !== eventId) {
+            lastRoutedAudioItemIdRef.current = eventId;
+
+            if (!conversationState.current.currentAssistantResponse.isActive) {
+              handleUserUtteranceForResponse(normalized, isPTTActive ? "ptt" : "audio");
+            }
+          }
+        }
+
+        if (eventType === "conversation.item.created" || eventType === "conversation.item.added") {
+          const item = eventData.item;
+
+          if (item?.role === "user" && Array.isArray(item.content)) {
+            const transcripts = item.content
+              .map((c: any) => c?.transcript)
+              .filter(Boolean) as string[];
+
+            const joined = transcripts.join("").trim();
+
+            if (joined && !conversationState.current.currentUserMessage) {
+              conversationState.current.currentUserMessage = {
+                content: joined,
+                eventId: item.id,
+                timestamp: Date.now(),
+              };
+            }
+          }
+        }
+
+        if (eventType === "conversation.item.input_audio_transcription.failed") {
+          clearPendingAudioResponseFallback();
+
+          const reason = eventData?.error || "unknown";
+
+          postLog({
+            role: "system",
+            content: `[STT FAILED] ${String(reason).slice(0, 200)}`,
+            eventId: eventData.item_id || `stt_fail_${Date.now()}`,
+          });
+
+          if (!conversationState.current.currentAssistantResponse.isActive) {
+            createAssistantAudioResponse("(trigger response after STT failed)");
+          }
+        }
+
+        if (eventType === "response.created") {
+          const responseId = eventData.response?.id || eventData.id;
+
+          conversationState.current.currentAssistantResponse = {
+            isActive: true,
+            responseId,
+            textBuffer: "",
+            audioTranscriptBuffer: "",
+            startTime: Date.now(),
+          };
+        }
+
+        if (
+          eventType === "response.audio_transcript.delta" ||
+          eventType === "response.output_audio_transcript.delta"
+        ) {
+          const delta = eventData.delta || "";
+
+          if (delta && conversationState.current.currentAssistantResponse.isActive) {
+            conversationState.current.currentAssistantResponse.audioTranscriptBuffer += delta;
+          }
+        }
+
+        if (
+          eventType === "response.audio_transcript.done" ||
+          eventType === "response.output_audio_transcript.done"
+        ) {
+          const transcript = eventData.transcript || "";
+
+          if (transcript && conversationState.current.currentAssistantResponse.isActive) {
+            if (
+              conversationState.current.currentAssistantResponse.audioTranscriptBuffer.length <
+              transcript.length
+            ) {
+              conversationState.current.currentAssistantResponse.audioTranscriptBuffer = transcript;
+            }
+          }
+        }
+
+        const TEXT_DELTA_EVENTS = [
+          "response.text.delta",
+          "response.output_text.delta",
+          "response.output_text_annotation.added",
+          "output_text.delta",
+          "conversation.item.delta",
+        ];
+
+        if (TEXT_DELTA_EVENTS.some((ev) => eventType.includes(ev))) {
+          const delta = eventData.delta || eventData.text || "";
+
+          if (delta && conversationState.current.currentAssistantResponse.isActive) {
+            conversationState.current.currentAssistantResponse.textBuffer += delta;
+          }
+        }
+
+        const TEXT_DONE_EVENTS = ["response.text.done", "response.output_text.done", "output_text.done"];
+
+        if (TEXT_DONE_EVENTS.some((ev) => eventType.includes(ev))) {
+          const completedText = eventData.text || "";
+
+          if (completedText && conversationState.current.currentAssistantResponse.isActive) {
+            if (
+              conversationState.current.currentAssistantResponse.textBuffer.length <
+              completedText.length
+            ) {
+              conversationState.current.currentAssistantResponse.textBuffer = completedText;
+            }
+          }
+        }
+
+        if (eventType === "response.content_part.done") {
+          const part = eventData.part;
+
+          if (
+            part?.type === "text" &&
+            part.text &&
+            conversationState.current.currentAssistantResponse.isActive
+          ) {
+            if (!conversationState.current.currentAssistantResponse.textBuffer) {
+              conversationState.current.currentAssistantResponse.textBuffer = part.text;
+            }
+          }
+        }
+
+        const RESPONSE_DONE_EVENTS = ["response.done", "response.completed"];
+
+        if (RESPONSE_DONE_EVENTS.includes(eventType)) {
+          const outputItems = eventData?.response?.output || [];
+          const functionCalls = Array.isArray(outputItems)
+            ? outputItems.filter((it: any) => it?.type === "function_call" && it?.call_id && it?.name)
+            : [];
+
+          if (functionCalls.length) {
+            const callsToProcess = functionCalls.filter(
+              (c: any) => !processedToolCallIds.current.has(c.call_id)
+            );
+
+            if (callsToProcess.length) {
+              callsToProcess.forEach((c: any) => processedToolCallIds.current.add(c.call_id));
+
+              void (async () => {
+                try {
+                  for (const call of callsToProcess) {
+                    if (call.name !== "web_search") continue;
+
+                    let args: any = {};
+
+                    try {
+                      args =
+                        typeof call.arguments === "string"
+                          ? JSON.parse(call.arguments || "{}")
+                          : call.arguments || {};
+                    } catch {
+                      args = {};
+                    }
+
+                    const query = String(args.query || "").trim();
+                    const recency_days = Number(args.recency_days || 30);
+                    const domains = Array.isArray(args.domains) ? args.domains : undefined;
+
+                    postLog({
+                      role: "system",
+                      content: `[WEB_SEARCH CALL] query="${query}" recency_days=${recency_days}${
+                        domains?.length ? ` domains=${JSON.stringify(domains).slice(0, 200)}` : ""
+                      }`,
+                      eventId: `web_search_call_${call.call_id}`,
+                    });
+
+                    const res = await fetch("/api/web_search", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ query, recency_days, domains }),
+                    });
+
+                    let data: any = null;
+
+                    try {
+                      data = await res.json();
+                    } catch (err) {
+                      data = { error: `Failed to parse JSON: ${String(err)}` };
+                    }
+
+                    if (!res.ok) {
+                      postLog({
+                        role: "system",
+                        content: `[WEB_SEARCH ERROR] status=${res.status} ${
+                          res.statusText
+                        } body=${JSON.stringify(data).slice(0, 300)}`,
+                        eventId: `web_search_err_${call.call_id}`,
+                      });
+                    } else {
+                      const cCount = Array.isArray(data?.citations) ? data.citations.length : 0;
+
+                      postLog({
+                        role: "system",
+                        content: `[WEB_SEARCH OK] citations=${cCount} preview=${String(
+                          data?.answer || ""
+                        ).slice(0, 200)}`,
+                        eventId: `web_search_ok_${call.call_id}`,
+                      });
+                    }
+
+                    sendClientEvent(
+                      {
+                        type: "conversation.item.create",
+                        item: {
+                          type: "function_call_output",
+                          call_id: call.call_id,
+                          output: JSON.stringify(data).slice(0, 20000),
+                        },
+                      },
+                      "(tool output: web_search)"
+                    );
+                  }
+
+                  sendClientEvent(
+                    {
+                      type: "response.create",
+                      response: {
+                        output_modalities: ["audio"],
+                      },
+                    },
+                    "(trigger response after web_search)"
+                  );
+                } catch (err) {
+                  console.error("💥 web_search tool failed:", err);
+
+                  postLog({
+                    role: "system",
+                    content: `[WEB_SEARCH FAILED] ${String(err).slice(0, 200)}`,
+                    eventId: `web_search_fail_${Date.now()}`,
+                  });
+                }
+              })();
+            }
+
+            conversationState.current.currentAssistantResponse = {
+              isActive: false,
+              responseId: null,
+              textBuffer: "",
+              audioTranscriptBuffer: "",
+              startTime: 0,
+            };
+
+            return;
+          }
+
+          const assistantResponse = conversationState.current.currentAssistantResponse;
+          let finalText = assistantResponse.textBuffer.trim();
+
+          if (!finalText) {
+            if (assistantResponse.audioTranscriptBuffer.trim()) {
+              finalText = assistantResponse.audioTranscriptBuffer.trim();
+            }
+
+            if (!finalText) {
+              const response = eventData.response;
+
+              if (response?.output) {
+                finalText = extractTextFromOutput(response.output);
+              }
+            }
+
+            if (!finalText) {
+              finalText = (eventData.text || eventData.content || "").trim();
+            }
+          }
+
+          try {
+            const citations = extractFileCitationsFromOutput(eventData?.response?.output);
+
+            if (citations?.length) {
+              postLog({
+                role: "system",
+                content: `[CITATIONS] ${JSON.stringify(citations).slice(0, 1000)}`,
+              });
+            }
+          } catch (err) {
+            console.warn("Citation extraction failed:", err);
+          }
+
+          if (finalText) {
+            const assistantMsg = {
+              content: finalText,
+              eventId:
+                assistantResponse.responseId ||
+                eventData.response?.id ||
+                eventData.id ||
+                `assistant_${Date.now()}`,
+              timestamp: Date.now(),
+            };
+
+            if (conversationState.current.currentUserMessage) {
+              logConversationPair(conversationState.current.currentUserMessage, assistantMsg);
+              conversationState.current.currentUserMessage = null;
+            } else {
+              reallyPostLog({
+                role: "assistant",
+                content: finalText,
+                eventId: assistantMsg.eventId,
+                timestamp: assistantMsg.timestamp,
+              }).catch((error) => {
+                console.error("💥 Error logging orphaned assistant response:", error);
+              });
+            }
+          } else {
+            postLog({
+              role: "system",
+              content: `[ERROR] Assistant response completed but no text extracted. Event: ${eventType}`,
+              eventId: `error_${Date.now()}`,
+            });
+          }
+
+          conversationState.current.currentAssistantResponse = {
+            isActive: false,
+            responseId: null,
+            textBuffer: "",
+            audioTranscriptBuffer: "",
+            startTime: 0,
+          };
+        }
+
+        if (eventType === "input_audio_buffer.speech_started") {
+          clearPendingAudioResponseFallback();
+          setIsListening(true);
+
+          if (isOutputAudioBufferActiveRef.current) {
+            sendClientEvent(
+              { type: "response.cancel" },
+              "(auto barge-in: user speech started)"
+            );
+
+            sendClientEvent(
+              { type: "output_audio_buffer.clear" },
+              "(auto barge-in: clear assistant audio)"
+            );
+          }
+        }
+
+        if (["input_audio_buffer.speech_stopped", "input_audio_buffer.committed"].includes(eventType)) {
+          setIsListening(false);
+
+          if (eventType === "input_audio_buffer.committed") {
+            scheduleAudioResponseFallback("input_audio_buffer.committed");
+          }
+        }
+
+        if (eventType === "error") {
+          console.error("❌ Realtime API error:", eventData);
+
+          postLog({
+            role: "system",
+            content: `[REALTIME ERROR] ${JSON.stringify(eventData).slice(0, 500)}`,
+            eventId: eventData?.event_id || `rt_error_${Date.now()}`,
+          });
+        }
+
+        const KNOWN_EVENTS = [
+          "session.created",
+          "session.updated",
+          "input_audio_buffer.speech_started",
+          "input_audio_buffer.speech_stopped",
+          "input_audio_buffer.committed",
+          "input_audio_buffer.cleared",
+          "conversation.item.input_audio_transcription.completed",
+          "conversation.item.input_audio_transcription.failed",
+          "conversation.item.created",
+          "conversation.item.added",
+          "conversation.item.done",
+          "response.created",
+          "response.content_part.added",
+          "response.content_part.done",
+          "response.text.delta",
+          "response.output_text.delta",
+          "response.output_text_annotation.added",
+          "output_text.delta",
+          "response.text.done",
+          "response.output_text.done",
+          "output_text.done",
+          "response.output_audio.delta",
+          "response.output_audio.done",
+          "response.output_audio_transcript.delta",
+          "response.output_audio_transcript.done",
+          "response.audio_transcript.delta",
+          "response.audio_transcript.done",
+          "response.audio.done",
+          "response.output_item.added",
+          "response.output_item.done",
+          "response.done",
+          "response.completed",
+          "rate_limits.updated",
+          "output_audio_buffer.started",
+          "output_audio_buffer.stopped",
+          "output_audio_buffer.cleared",
+          "error",
+        ];
+
+        if (!KNOWN_EVENTS.includes(eventType)) {
+          console.log("🔍 Unknown event:", eventType, eventData);
+        }
+      });
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
+        method: "POST",
+        body: offer.sdp,
+        headers: {
+          Authorization: `Bearer ${EPHEMERAL_KEY}`,
+          "Content-Type": "application/sdp",
+        },
+      });
+
+      if (!sdpResponse.ok) {
+        const errorText = await sdpResponse.text().catch(() => "");
+
+        console.error("❌ Realtime SDP failed:", sdpResponse.status, sdpResponse.statusText, errorText);
+
+        logClientEvent(
+          {
+            status: sdpResponse.status,
+            statusText: sdpResponse.statusText,
+            body: errorText.slice(0, 1000),
+          },
+          "error.realtime_sdp_failed"
+        );
+
+        setSessionStatus("DISCONNECTED");
+        return;
+      }
+
+      await pc.setRemoteDescription({
+        type: "answer" as RTCSdpType,
+        sdp: await sdpResponse.text(),
+      });
+
+      console.log("🎯 WebRTC connection established", {
+        model: data?.session?.model || data?.model || "gpt-realtime",
+      });
+    } catch (err: any) {
+      console.error("💥 Error connecting to realtime:", {
+        name: err?.name,
+        message: err?.message,
+        stack: err?.stack,
+      });
+
+      setSessionStatus("DISCONNECTED");
+    }
+  }
+
+  function stopSession() {
+    const dc = dataChannelRef.current || dataChannel;
+
+    if (dc) {
+      dc.close();
+    }
+
+    dataChannelRef.current = null;
+    setDataChannel(null);
+
+    if (peerConnection.current) {
+      peerConnection.current.getSenders().forEach((sender) => sender.track && sender.track.stop());
+      peerConnection.current.close();
+      peerConnection.current = null;
+    }
+
+    setSessionStatus("DISCONNECTED");
+    setIsListening(false);
+    clearPendingAudioResponseFallback();
+    hasSentWelcomeRef.current = false;
+    isOutputAudioBufferActiveRef.current = false;
+    fortuneProfileRef.current = { algorithm: "tw" };
+    lastRoutedAudioItemIdRef.current = null;
+
+    conversationState.current = {
+      currentUserMessage: null,
+      currentAssistantResponse: {
+        isActive: false,
+        responseId: null,
+        textBuffer: "",
+        audioTranscriptBuffer: "",
+        startTime: 0,
+      },
+      conversationPairs: [],
+    };
+
+    loggedEventIds.current.clear();
+    processedToolCallIds.current.clear();
+    pendingLogsRef.current.length = 0;
+  }
+
+  const updateSession = () => {
+    sendClientEvent({ type: "input_audio_buffer.clear" }, "clear audio buffer on session update");
+
+    const currentAgent = selectedAgentConfigSet?.find(
+      (a) => a.name === " " + selectedAgentName || a.name === selectedAgentName
+    );
+
+    const turnDetection = isPTTActive
+      ? null
+      : {
+          type: "server_vad",
+          threshold: 0.65,
+          prefix_padding_ms: 500,
+          silence_duration_ms: 1000,
+          create_response: false,
+          interrupt_response: true,
+        };
+
+    const instructions = `${
+      currentAgent?.instructions || ""
+    }
+
+- 當問題需要公司/內部文件或知識庫內容時，請先使用 file_search 檢索向量庫，並在回答中附上來源。
+- 當問題需要最新的外部資訊（新聞、價格、政策、版本更新）時，先呼叫 web_search，再用搜尋結果回答並附上來源。
+- 如果使用者語音聽起來不清楚、內容不完整、像背景音，或和目前對話脈絡明顯不相關，不要直接推銷或回答；請先說：「我剛剛沒有聽清楚，可以再說一次嗎？」
+- 如果轉錄看起來是英文短句，例如 Yeah、Why、Bye、way over there，但前後脈絡主要是中文，請優先判斷可能是誤辨識，先確認，不要直接結束對話或切到英文回覆。
+- 若本回合 response instructions 內含 [ZODIAC_CHECK_RESULT]，生肖、農曆新年分界日、生肖年、是否一致都必須完全依照該結果，不得自行查表或改日期。`;
+
+    const webSearchTool = {
+      type: "function",
+      name: "web_search",
+      description: "Search the public web for up-to-date info and return key points with sources.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query" },
+          recency_days: { type: "integer", description: "Prefer results within N days", default: 30 },
+          domains: {
+            type: "array",
+            items: { type: "string" },
+            description: "Optional allowlist of domains, e.g. ['openai.com','who.int']",
+          },
+        },
+        required: ["query"],
+      },
+    };
+
+    const baseTools = (currentAgent?.tools ?? []) as any[];
+    const hasWebSearch = baseTools.some((t) => t?.name === "web_search");
+    const tools = hasWebSearch ? baseTools : [...baseTools, webSearchTool];
+
+    const sessionUpdateEvent = {
+      type: "session.update",
+      session: {
+        type: "realtime",
+        instructions,
+        output_modalities: ["audio"],
+        audio: {
+          input: {
+            noise_reduction: {
+              type: "near_field",
+            },
+            transcription: {
+              model: "gpt-4o-mini-transcribe",
+              language: "zh",
+              prompt: WEIDER_TRANSCRIPTION_PROMPT,
+            },
+            turn_detection: turnDetection,
+          },
+        },
+        tools,
+        tool_choice: "auto",
+      },
+    };
+
+    sendClientEvent(sessionUpdateEvent, "agent.tools + web_search");
+  };
+
+  const cancelAssistantSpeech = async () => {
+    sendClientEvent(
+      { type: "response.cancel" },
+      "(cancel due to user interruption)"
+    );
+
+    if (isOutputAudioBufferActiveRef.current) {
+      sendClientEvent(
+        { type: "output_audio_buffer.clear" },
+        "(clear output audio due to user interruption)"
+      );
+    }
+  };
+
+  const handleSendTextMessage = () => {
+    const textToSend = userText.trim();
+
+    if (!textToSend) return;
+
+    cancelAssistantSpeech();
+
+    sendClientEvent(
+      {
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: textToSend }],
+        },
+      },
+      "(send user text message)"
+    );
+
+    const eventId = `text_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    conversationState.current.currentUserMessage = {
+      content: textToSend,
+      eventId,
+      timestamp: Date.now(),
+    };
+
+    setUserText("");
+
+    handleUserUtteranceForResponse(textToSend, "text");
+  };
+
+  const handleTalkButtonDown = () => {
+    const dc = dataChannelRef.current;
+
+    if (sessionStatus !== "CONNECTED" || dc?.readyState !== "open") return;
+
+    cancelAssistantSpeech();
+    setIsPTTUserSpeaking(true);
+    setIsListening(true);
+
+    sendClientEvent({ type: "input_audio_buffer.clear" }, "clear PTT buffer");
+  };
+
+  const handleTalkButtonUp = () => {
+    const dc = dataChannelRef.current;
+
+    if (sessionStatus !== "CONNECTED" || dc?.readyState !== "open" || !isPTTUserSpeaking) return;
+
+    setIsPTTUserSpeaking(false);
+    setIsListening(false);
+
+    sendClientEvent({ type: "input_audio_buffer.commit" }, "commit PTT");
+    scheduleAudioResponseFallback("PTT commit");
   };
 
   const handleMicrophoneClick = () => {
