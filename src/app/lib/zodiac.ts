@@ -9,6 +9,23 @@ export type ZodiacCheckInput = {
   algorithm?: ZodiacAlgorithm;
 };
 
+export type FortuneProfileState = {
+  gender?: string;
+  birthDate?: string;
+  userZodiac?: string;
+  algorithm: ZodiacAlgorithm;
+};
+
+export type LunarNewYearLookupResult = {
+  type: "lunar_new_year_lookup";
+  year: number;
+  algorithm: ZodiacAlgorithm;
+  algorithmLabel: string;
+  boundaryDate: string;
+  boundaryMonthDay: string;
+  replyInstruction: string;
+};
+
 export type ZodiacCheckResult = {
   type: "zodiac_check";
   algorithm: ZodiacAlgorithm;
@@ -26,6 +43,29 @@ export type ZodiacCheckResult = {
   isConsistent: boolean | null;
   replyInstruction: string;
 };
+
+export type ZodiacLookupResult = {
+  type: "zodiac_lookup";
+  algorithm: ZodiacAlgorithm;
+  algorithmLabel: string;
+  birthDate: string;
+  birthYear: number;
+  boundaryDate: string;
+  boundaryMonthDay: string;
+  birthMonthDay: string;
+  isBeforeBoundary: boolean;
+  zodiacYear: number;
+  computedZodiac: string;
+  userZodiac: null;
+  normalizedUserZodiac: null;
+  isConsistent: null;
+  replyInstruction: string;
+};
+
+export type ZodiacPayload =
+  | LunarNewYearLookupResult
+  | ZodiacCheckResult
+  | ZodiacLookupResult;
 
 const ZODIACS = [
   "鼠",
@@ -153,33 +193,100 @@ const VN_LUNAR_OVERRIDES: Record<number, string> = {
   2030: "2030-02-02",
 };
 
-export type FortuneProfileState = {
-  gender?: string;
-  birthDate?: string;
-  userZodiac?: string;
-  algorithm: ZodiacAlgorithm;
-};
+function normalizeChineseZodiacChars(text: string): string {
+  return text
+    .replace(/龙/g, "龍")
+    .replace(/马/g, "馬")
+    .replace(/鸡/g, "雞")
+    .replace(/猪/g, "豬")
+    .replace(/猫/g, "貓");
+}
+
+function pad2(value: string): string {
+  return value.padStart(2, "0");
+}
+
+function ymdToNumber(date: string): number {
+  return Number(date.replace(/-/g, ""));
+}
+
+function monthDay(date: string): string {
+  return `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
+}
 
 export function extractBirthDate(text: string): string | undefined {
-  const slash = text.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+  const normalized = normalizeChineseZodiacChars(text.trim());
+
+  const slash = normalized.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
   if (slash) {
     const [, y, m, d] = slash;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    return `${y}-${pad2(m)}-${pad2(d)}`;
   }
 
-  const zh = text.match(/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+  const zh = normalized.match(/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日?/);
   if (zh) {
     const [, y, m, d] = zh;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+
+  const rocZh = normalized.match(/民國\s*(\d{2,3})\s*年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+  if (rocZh) {
+    const [, rocYear, m, d] = rocZh;
+    const y = Number(rocYear) + 1911;
+    return `${y}-${pad2(m)}-${pad2(d)}`;
   }
 
   return undefined;
 }
 
+export function extractPartialMonthDay(text: string): { month: string; day: string } | undefined {
+  const normalized = text.trim();
+
+  const match = normalized.match(
+    /(?:說錯|更正|應該是|應該改成|改成|那|如果是|換成|生日是|我是|那如果是)?\s*(\d{1,2})[\/\-.](\d{1,2})/
+  );
+
+  if (!match) return undefined;
+
+  const [, m, d] = match;
+  const month = Number(m);
+  const day = Number(d);
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) return undefined;
+
+  return {
+    month: pad2(m),
+    day: pad2(d),
+  };
+}
+
 export function extractZodiac(text: string): string | undefined {
-  const normalized = text.replace(/龙/g, "龍").replace(/马/g, "馬").replace(/鸡/g, "雞").replace(/猪/g, "豬");
-  const match = normalized.match(/鼠|牛|虎|兔|龍|蛇|馬|羊|猴|雞|狗|豬|貓|猫/);
-  return match?.[0];
+  const normalized = normalizeChineseZodiacChars(text.trim());
+  const animal = "(鼠|牛|虎|兔|龍|蛇|馬|羊|猴|雞|狗|豬|貓)";
+
+  const standalone = normalized.match(
+    new RegExp(`^\\s*(?:我)?(?:是|屬|属|數|生肖)?\\s*${animal}\\s*(?:子)?\\s*$`)
+  );
+  if (standalone?.[1]) return standalone[1];
+
+  const marked = normalized.match(
+    new RegExp(`(?:屬|属|生肖|數|我是|我屬|我属)\\s*(?:的)?\\s*${animal}`)
+  );
+  if (marked?.[1]) return marked[1];
+
+  return undefined;
+}
+
+export function asksZodiacQuestion(text: string): boolean {
+  return /屬什麼|属什么|生肖是什麼|生肖是什么|是什麼生肖|是什么生肖|什麼生肖|什么生肖|哪個生肖|哪个生肖|屬哪個|属哪个/.test(
+    normalizeChineseZodiacChars(text)
+  );
+}
+
+export function isZodiacChallenge(text: string): boolean {
+  return /不是.*屬|不是.*属|不就是.*屬|不就是.*属|為什麼|为什么|你是不是算錯|算錯|算错|不對|不对|應該是|应该是|老鼠後|老鼠后|鼠後|鼠后/.test(
+    normalizeChineseZodiacChars(text)
+  );
 }
 
 export function extractAlgorithm(text: string): ZodiacAlgorithm | undefined {
@@ -190,27 +297,46 @@ export function extractAlgorithm(text: string): ZodiacAlgorithm | undefined {
 }
 
 export function extractLunarNewYearYear(text: string): number | undefined {
-  const match = text.match(/(\d{4})年?.*(農曆年|農曆新年|春節|過年|正月初一)/);
-  return match ? Number(match[1]) : undefined;
+  const normalized = text.trim();
+
+  const western = normalized.match(
+    /(\d{4})\s*年?.*(農曆年|農曆新年|农历年|农历新年|春節|春节|過年|过年|正月初一|生肖分界|新年分界)/
+  );
+  if (western) return Number(western[1]);
+
+  const roc = normalized.match(
+    /民國\s*(\d{2,3})\s*年?.*(農曆年|農曆新年|农历年|农历新年|春節|春节|過年|过年|正月初一|生肖分界|新年分界)/
+  );
+  if (roc) return Number(roc[1]) + 1911;
+
+  return undefined;
 }
 
 export function shouldUseZodiacCheck(text: string, state: FortuneProfileState): boolean {
   if (extractLunarNewYearYear(text)) return true;
 
   const hasBirth = Boolean(extractBirthDate(text));
+  const hasPartialDate = Boolean(extractPartialMonthDay(text));
   const hasZodiacNow = Boolean(extractZodiac(text));
   const hasAlgorithmSwitch = Boolean(extractAlgorithm(text));
+  const isQuestion = asksZodiacQuestion(text);
+  const isChallenge = isZodiacChallenge(text);
 
   if (hasBirth && hasZodiacNow) return true;
-  if (hasBirth && state.userZodiac) return true;
-  if (hasZodiacNow && state.birthDate) return true;
-  if (hasAlgorithmSwitch && state.birthDate) return true;
+  if (hasBirth && isQuestion) return true;
+  if (hasBirth && isChallenge) return true;
+  if (hasBirth && Boolean(state.userZodiac)) return true;
+
+  if (hasPartialDate && Boolean(state.birthDate) && isQuestion) return true;
+  if (hasPartialDate && Boolean(state.birthDate) && isChallenge) return true;
+  if (hasPartialDate && Boolean(state.birthDate) && Boolean(state.userZodiac)) return true;
+
+  if (hasZodiacNow && Boolean(state.birthDate)) return true;
+  if (hasAlgorithmSwitch && Boolean(state.birthDate)) return true;
+  if (isQuestion && Boolean(state.birthDate)) return true;
+  if (isChallenge && Boolean(state.birthDate)) return true;
 
   return false;
-}
-
-function ymdToNumber(date: string): number {
-  return Number(date.replaceAll("-", ""));
 }
 
 function getBoundaryDate(year: number, algorithm: ZodiacAlgorithm): string {
@@ -230,12 +356,8 @@ function getZodiacByYear(zodiacYear: number): string {
 function normalizeZodiac(raw?: string, algorithm: ZodiacAlgorithm = "tw"): string | null {
   if (!raw) return null;
 
-  const text = raw
+  const text = normalizeChineseZodiacChars(raw)
     .replace(/屬|属|數|生肖|是|我|的/g, "")
-    .replace(/龙/g, "龍")
-    .replace(/马/g, "馬")
-    .replace(/鸡/g, "雞")
-    .replace(/猪/g, "豬")
     .trim();
 
   if (algorithm === "vn" && /貓|猫/.test(text)) return "兔";
@@ -251,21 +373,25 @@ function algorithmLabel(algorithm: ZodiacAlgorithm): string {
   return "台灣生肖算法";
 }
 
-function monthDay(date: string): string {
-  return `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
-}
-
-export function lookupLunarNewYear(year: number, algorithm: ZodiacAlgorithm = "tw") {
+export function lookupLunarNewYear(
+  year: number,
+  algorithm: ZodiacAlgorithm = "tw"
+): LunarNewYearLookupResult {
   const boundaryDate = getBoundaryDate(year, algorithm);
+  const label = algorithmLabel(algorithm);
+  const boundaryMonthDay = monthDay(boundaryDate);
 
   return {
-    type: "lunar_new_year_lookup" as const,
+    type: "lunar_new_year_lookup",
     year,
     algorithm,
-    algorithmLabel: algorithmLabel(algorithm),
+    algorithmLabel: label,
     boundaryDate,
-    boundaryMonthDay: monthDay(boundaryDate),
-    replyInstruction: `${year}年的${algorithmLabel(algorithm)}新年分界是${monthDay(boundaryDate)}。請直接回答這一天，不要提到查表、後端、JSON、工具或系統規則。`,
+    boundaryMonthDay,
+    replyInstruction:
+      algorithm === "jp"
+        ? `${year}年的日本生肖算法分界是1月1日。請用自然口吻直接回答，不要說「根據我查到的」，也不要提到查表、後端、JSON、工具、函式或系統規則。`
+        : `${year}年的${label}農曆新年分界是${boundaryMonthDay}。請用自然口吻直接回答，不要說「根據我查到的」，也不要提到查表、後端、JSON、工具、函式或系統規則。`,
   };
 }
 
@@ -284,16 +410,21 @@ export function checkZodiac(input: ZodiacCheckInput): ZodiacCheckResult {
 
   const boundaryMonthDay = monthDay(boundaryDate);
   const birthMonthDay = monthDay(birthDate);
+  const label = algorithmLabel(algorithm);
 
   const replyInstruction =
     isConsistent === false
-      ? `請依照此結果做生肖糾錯確認。必須說：${birthYear}年的新年分界是${boundaryMonthDay}，使用者生日是${birthMonthDay}，因為${isBeforeBoundary ? "在分界日前" : "已經到分界日後"}，所以要看${zodiacYear}年的生肖，應該算屬${computedZodiac}，不是屬${normalizedUserZodiac}。最後只問：這邊要幫你改成屬${computedZodiac}來看嗎？`
-      : `請依照此結果確認生肖一致，然後繼續原本解籤流程。不要提到查表、後端、JSON、工具或系統規則。`;
+      ? `請自然表達生肖糾錯確認。意思必須包含：我這邊用${label}幫您核對，${birthYear}年的農曆新年分界是${boundaryMonthDay}，您的生日是${birthMonthDay}，因為${
+          isBeforeBoundary ? "還在分界日前" : "已經過了分界日"
+        }，所以要看${zodiacYear}年的生肖，應該是屬${computedZodiac}，不是屬${normalizedUserZodiac}。語氣要溫和，不要說使用者錯了。最後只問：這邊要幫您改成屬${computedZodiac}來看嗎？`
+      : `請自然確認生肖一致。意思必須包含：我這邊用${label}幫您核對，${birthYear}年的農曆新年分界是${boundaryMonthDay}，您的生日是${birthMonthDay}，因為${
+          isBeforeBoundary ? "還在分界日前" : "已經過了分界日"
+        }，所以要看${zodiacYear}年的生肖，確實是屬${computedZodiac}。如果主題已經鎖定，接著可以進入原本解籤流程的下一個追問。不要提到查表、後端、JSON、工具、函式或系統規則。`;
 
   return {
     type: "zodiac_check",
     algorithm,
-    algorithmLabel: algorithmLabel(algorithm),
+    algorithmLabel: label,
     birthDate,
     birthYear,
     boundaryDate,
@@ -307,4 +438,54 @@ export function checkZodiac(input: ZodiacCheckInput): ZodiacCheckResult {
     isConsistent,
     replyInstruction,
   };
+}
+
+export function lookupZodiacByBirthDate(input: {
+  birthDate: string;
+  algorithm?: ZodiacAlgorithm;
+}): ZodiacLookupResult {
+  const algorithm = input.algorithm ?? "tw";
+  const birthDate = input.birthDate;
+  const birthYear = Number(birthDate.slice(0, 4));
+  const boundaryDate = getBoundaryDate(birthYear, algorithm);
+
+  const isBeforeBoundary = ymdToNumber(birthDate) < ymdToNumber(boundaryDate);
+  const zodiacYear = isBeforeBoundary ? birthYear - 1 : birthYear;
+  const computedZodiac = getZodiacByYear(zodiacYear);
+
+  const boundaryMonthDay = monthDay(boundaryDate);
+  const birthMonthDay = monthDay(birthDate);
+  const label = algorithmLabel(algorithm);
+
+  return {
+    type: "zodiac_lookup",
+    algorithm,
+    algorithmLabel: label,
+    birthDate,
+    birthYear,
+    boundaryDate,
+    boundaryMonthDay,
+    birthMonthDay,
+    isBeforeBoundary,
+    zodiacYear,
+    computedZodiac,
+    userZodiac: null,
+    normalizedUserZodiac: null,
+    isConsistent: null,
+    replyInstruction: `請自然回答生肖查詢。意思必須包含：我這邊用${label}幫您核對，${birthYear}年的農曆新年分界是${boundaryMonthDay}，生日是${birthMonthDay}，因為${
+      isBeforeBoundary ? "還在分界日前" : "已經過了分界日"
+    }，所以要看${zodiacYear}年的生肖，結果是屬${computedZodiac}。如果這是在更正前一次錯誤結論，請先簡短承認並更正。不要提到查表、後端、JSON、工具、函式或系統規則。`,
+  };
+}
+
+export function buildZodiacResponseInstructions(payload: ZodiacPayload): string {
+  return `
+本回合已由程式完成生肖與農曆新年分界查表，這份結果是最高優先資料來源。
+你必須完全依照 [ZODIAC_CHECK_RESULT] 的 boundaryDate、boundaryMonthDay、zodiacYear、computedZodiac、isConsistent 與 replyInstruction 回答。
+不得自行重新計算，不得使用記憶中的農曆日期，不得把日期改成其他版本。
+回答使用者時，請維持原本解籤大師口吻，不要提到查表、後端、JSON、工具、函式、程式或系統規則。
+
+[ZODIAC_CHECK_RESULT]
+${JSON.stringify(payload, null, 2)}
+`.trim();
 }
